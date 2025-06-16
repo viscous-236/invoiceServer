@@ -1,7 +1,7 @@
-// api/verify-invoice.js - Pure Vercel Serverless Function
+// api/verify-invoice.js - Fixed Vercel Serverless Function
 // No Express, no external dependencies, just pure Node.js
 
-// Helper function to parse JSON body
+// Helper function to parse JSON body - HANDLES CHAINLINK FUNCTIONS FORMAT
 async function parseBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -10,8 +10,73 @@ async function parseBody(req) {
     });
     req.on('end', () => {
       try {
-        resolve(body ? JSON.parse(body) : {});
+        console.log('Raw body received:', body);
+        console.log('Body type:', typeof body);
+        console.log('Body length:', body.length);
+        
+        if (!body || body.trim() === '') {
+          resolve({});
+          return;
+        }
+        
+        let parsedBody;
+        
+        // First, try normal JSON parsing
+        try {
+          parsedBody = JSON.parse(body);
+          console.log('First parse successful:', parsedBody);
+          console.log('Parsed body type:', typeof parsedBody);
+          
+          // Check if the parsed result is a string (which would be double-encoded JSON)
+          if (typeof parsedBody === 'string') {
+            console.log('Parsed body is a string, attempting second parse...');
+            try {
+              const secondParse = JSON.parse(parsedBody);
+              console.log('Second parse successful:', secondParse);
+              parsedBody = secondParse;
+            } catch (secondError) {
+              console.log('Second parse failed, keeping first parse result');
+              // Keep the first parse result
+            }
+          }
+          
+        } catch (firstError) {
+          console.log('First JSON parse failed:', firstError.message);
+          throw firstError;
+        }
+        
+        resolve(parsedBody);
       } catch (error) {
+        console.error('Error parsing body:', error);
+        reject(new Error('Invalid JSON: ' + error.message));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// Alternative simpler parseBody function
+async function parseBodySimple(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        console.log('Raw body received:', body);
+        
+        if (!body || body.trim() === '') {
+          resolve({});
+          return;
+        }
+        
+        // Simply parse once
+        const parsedBody = JSON.parse(body);
+        console.log('Parsed body:', parsedBody);
+        resolve(parsedBody);
+      } catch (error) {
+        console.error('JSON parse error:', error);
         reject(new Error('Invalid JSON'));
       }
     });
@@ -138,11 +203,13 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Parse request body
+    // Parse request body - using the enhanced version
     let body;
     try {
       body = await parseBody(req);
-      console.log('Parsed body:', JSON.stringify(body, null, 2));
+      console.log('Final parsed body:', JSON.stringify(body, null, 2));
+      console.log('Body type after parsing:', typeof body);
+      console.log('Is body an object?', typeof body === 'object' && body !== null);
     } catch (parseError) {
       console.log('❌ Body parsing error:', parseError.message);
       res.status(400).json({
@@ -154,16 +221,22 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Extract invoiceId from body
+    // Extract invoiceId from body with additional debugging
     const { invoiceId } = body;
-    console.log('Received invoiceId:', invoiceId, 'Type:', typeof invoiceId);
+    console.log('Extracted invoiceId:', invoiceId);
+    console.log('InvoiceId type:', typeof invoiceId);
+    console.log('Body keys:', Object.keys(body));
+    console.log('Body values:', Object.values(body));
 
     // Validate invoiceId parameter
     if (invoiceId === undefined || invoiceId === null) {
       console.log('❌ Missing invoiceId parameter');
+      console.log('Available properties in body:', Object.keys(body));
       res.status(400).json({
         error: 'Missing required parameters',
         message: 'invoiceId is required in request body',
+        receivedBody: body,
+        availableKeys: Object.keys(body),
         isValid: false,
         timestamp: Date.now()
       });
