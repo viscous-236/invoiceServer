@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/verify-invoice.js": {
-      "maxDuration": 30
+      "maxDuration": 120
     },
     "api/health.js": {
       "maxDuration": 10
