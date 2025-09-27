@@ -1,0 +1,9 @@
+{
+  "name": "chainlink-invoice-api",
+  "version": "1.0.0",
+  "description": "Invoice verification API for Chainlink Functions",
+  "main": "api/verify-invoice.js",
+  "engines": {
+    "node": "18.x"
+  }
+}
